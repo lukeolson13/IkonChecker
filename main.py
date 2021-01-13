@@ -1,5 +1,7 @@
 ##################
-# ToDo: validate inputs
+# TODO: multiple searches at once
+# TODO: handle "not requiring reservations" or "external reservations"
+# TODO: partial resort names
 ##################
 from selenium import webdriver
 from IkonChecker import IkonChecker
@@ -7,6 +9,7 @@ import time
 import json
 import logging
 import getpass
+import datetime 
 
 def load_from_file():
     deets = None
@@ -15,16 +18,46 @@ def load_from_file():
         with open(path) as f:
             deets = json.load(f)
             break
-    return deets["email"], deets['password'], deets['resort'], deets['date']
+    return deets['resort'], deets['date']
+
+def get_resort_name(accepted_resorts):
+    # prompt user for a resort name until they enter a valid one
+    while True:
+        name = input("enter resort name: ")
+        if name.upper() in accepted_resorts:
+            return name.upper()
+        else:
+            print(name, "not found, see accepted names below, case insensitive")
+            for res in accepted_resorts:
+                print(res)
+            print()
+
+def get_date():
+    # prompt user for date until they enter a valid one
+    while True:
+        dt = input("enter your desired date in format 'MM/DD/YYYY': ")
+        try:
+            date = datetime.datetime.strptime(dt, "%m/%d/%Y").date()
+            formatted_date = datetime.datetime.strptime(dt, "%m/%d/%Y").strftime("%a %b %d %Y")
+            if date < datetime.date.today():
+                print("in the past")
+            elif input(formatted_date+" y/n? ") == 'y':
+                return formatted_date
+        except ValueError as ex:
+            print('please use right format')
+
+
+with open("accepted_resorts.json") as f:
+    resorts = json.load(f)['resorts']
 
 print("whats up")
-my_email = input("enter email pls: ")
+my_email = input("enter email for ikon account pls: ")
 my_password = getpass.getpass()
 if input("load from file? y/n ") == "y":
     my_resort, my_desired_date = load_from_file()
 else:
-    my_resort = input("desired resort (spell very carefully)\n")
-    my_desired_date = input("desired date in format: Mon Jan 15 2021\n")
+    my_resort = get_resort_name(resorts)
+    my_desired_date = get_date()
     print("social security number?\n")
     time.sleep(1)
     print('naaaaa')
@@ -33,14 +66,12 @@ t = time.strftime("%Y%m%d %H%M%S", time.localtime())
 logging.basicConfig(filename="Logs/{}.log".format(t), level=logging.INFO)
 log = logging.getLogger()
 
-reservation_url = "https://account.ikonpass.com/en/myaccount/add-reservations/"
-driver_location = "C:/Program Files/chromedriver/chromedriver.exe"
-login_url = "https://account.ikonpass.com/en/login"
-
-ik = IkonChecker(reservation_url, login_url, driver_location, log)
+ik = IkonChecker(log=log)
 
 if not ik.check_login():
-    ik.login(my_email, my_password)
+    if not ik.login(my_email, my_password):
+        ik.close()
+        exit()
     
 ik.cookie_consent()
 
