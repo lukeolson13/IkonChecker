@@ -1,0 +1,16 @@
+INFO:root:not logged in
+INFO:root:SUCCESSFULLY LOGGED IN
+ERROR:root:exception: Message: element click intercepted: Element <a aria-label="dismiss cookie message" role="button" tabindex="0" class="cc-btn cc-dismiss">...</a> is not clickable at point (156, 562). Other element would receive the click: <a aria-label="dismiss cookie message" role="button" tabindex="0" class="cc-btn cc-dismiss">...</a>
+  (Session info: chrome=87.0.4280.88)
+
+ERROR:root:cookie popup not found
+INFO:root:logged in
+INFO:root:ATTEMPT: 1. TIME: 22:28:06
+INFO:root:WAITING...
+
+
+INFO:root:logged in
+INFO:root:ATTEMPT: 2. TIME: 22:33:08
+INFO:root:WAITING...
+
+
