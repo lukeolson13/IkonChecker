@@ -1,5 +1,7 @@
 ##########
 # TODO: make cookie consent better
+# TODO: handle "no remaining reservations"
+# TODO: gets stuck on "Continue to confirm" then throws error on for checkbox
 ##########
 import logging
 from selenium import webdriver
@@ -160,10 +162,53 @@ class IkonChecker:
             return False
         self.click_button("Confirm Reservations")
         try:
-            self.driver.find_element_by_xpath("//i[@class='amp-icon icon-success']")
+            self.driver.find_element_by_xpath("//i[contains(@class,'amp-icon icon-success')]")
             self.log.note("Successfully booked!")
             return True
         except NoSuchElementException as ex:
             self.log.error("exception: {}".format(ex))
             self.log.error("Reservation failed")
             return False
+
+resorts = [
+    "ALTA SNOWBIRD",
+    "ARAPAHOE BASIN",
+    "BIG SKY",
+    "BRIGHTON",
+    "COPPER MOUNTAIN",
+    "DEER VALLEY",
+    "ELDORA",
+    "SOLITUDE MOUNTAIN RESORT",
+    "STEAMBOAT",
+    "TAOS",
+    "WINTER PARK RESORT",
+    "BIG BEAR MOUNTAIN RESORT",
+    "JUNE MOUNTAIN",
+    "MAMMOTH MOUNTAIN",
+    "SQUAW VALLEY ALPINE MEADOWS",
+    "BOYNE HIGHLANDS RESORT",
+    "BOYNE MOUNTAIN RESORT",
+    "CRYSTAL MOUNTAIN RESORT",
+    "MT. BACHELOR",
+    "THE SUMMIT AT SNOQUALMIE",
+    "KILLINGTON",
+    "LOON MOUNTAIN",
+    "SNOWSHOE",
+    "STRATTON",
+    "SUGARBUSH",
+    "SUGARLOAF",
+    "SUNDAY RIVER",
+    "WINDHAM MOUNTAIN",
+    "BLUE MOUNTAIN",
+    "TREMBLANT",
+    "CYPRESS MOUNTAIN",
+    "RED MOUNTAIN",
+    "REVELSTOKE",
+    "SKI BIG 3",
+    "CORONET PEAK, THE REMARKABLES, MT HUTT",
+    "MT. BULLER",
+    "THREDBO",
+    "NISEKO UNITED",
+    "VALLE NEVADO",
+    "ZERMATT"
+]

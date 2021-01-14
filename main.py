@@ -1,12 +1,13 @@
 ##################
 # TODO: multiple searches at once
+# TODO: save search to file
 # TODO: handle "not requiring reservations" or "external reservations"
 # TODO: partial resort names
 ##################
-from selenium import webdriver
-from IkonChecker import IkonChecker
+import IkonChecker
 import time
 import json
+import os
 import logging
 import getpass
 import datetime 
@@ -46,9 +47,8 @@ def get_date():
         except ValueError as ex:
             print('please use right format')
 
-
-with open("accepted_resorts.json") as f:
-    resorts = json.load(f)['resorts']
+if not os.path.exists("Logs"):
+    os.mkdir("Logs")
 
 print("whats up")
 my_email = input("enter email for ikon account pls: ")
@@ -56,7 +56,7 @@ my_password = getpass.getpass()
 if input("load from file? y/n ") == "y":
     my_resort, my_desired_date = load_from_file()
 else:
-    my_resort = get_resort_name(resorts)
+    my_resort = get_resort_name(IkonChecker.resorts)
     my_desired_date = get_date()
     print("social security number?\n")
     time.sleep(1)
@@ -66,7 +66,7 @@ t = time.strftime("%Y%m%d %H%M%S", time.localtime())
 logging.basicConfig(filename="Logs/{}.log".format(t), level=logging.INFO)
 log = logging.getLogger()
 
-ik = IkonChecker(log=log)
+ik = IkonChecker.IkonChecker(log=log)
 
 if not ik.check_login():
     if not ik.login(my_email, my_password):
@@ -85,10 +85,12 @@ while not reserved:
     response = ik.find_date(my_desired_date)
     if response[0]:
         reserved = ik.reserve_date(response[1])
+        if not reserved:
+            log.info("WAITING...\n\n")
+            time.sleep(300)
+            attempt += 1
     elif response[0] == None:
         reserved = True
-    log.info("WAITING...\n\n")
-    time.sleep(300)
-    attempt += 1
+    
 
 ik.close()
