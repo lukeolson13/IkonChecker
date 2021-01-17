@@ -32,6 +32,23 @@ class IkonChecker:
         else:
             self.log = log
 
+    def handle_requests(self, requests):
+        # handles a batch of requests, checks for multiple dates at multiple resorts
+        # requests is a list of dicts = [
+        # { "resort": "RESORT NAME", "dates": ["Dates", "Desired"] }, ...
+        # ]
+        # dates in format as requested by self.find_date()
+        if not type(requests) == list:
+            raise ValueError("invalid value for 'requests': {}".format(requests))
+        for req in requests:
+            resort = req["resort"]
+            for dt in req["dates"]:
+                self.select_resort(resort)
+                response = self.find_date(dt)
+                if response[0]:
+                    success = self.reserve_date(response[1])
+                    
+
     def click_button(self, button_text):
         xpath = "//button[@class][@data-test='button']/span[text()='{}']".format(button_text)
         try:
