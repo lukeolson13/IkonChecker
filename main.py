@@ -96,8 +96,6 @@ if not load:
     with open("Searches/{}.json".format(t), 'w') as f:
         json.dump({"requests": requests}, f)
 
-
-exit()
 ik = IkonChecker.IkonChecker(log=log)
 
 if not ik.check_login():
@@ -109,21 +107,19 @@ ik.cookie_consent()
 
 finished = False
 attempt = 1
-print(requests)
 while not finished:
     t = time.strftime("%Y%m%d %H%M%S", time.localtime())
     log.info("\n\nATEMPT: {} TIME: {}".format(attempt, t))
+    if not ik.check_login():
+        ik.login(my_email, my_password)
     requests = ik.handle_requests(requests)
-    print(requests)
     for req in requests:
         if req['status'] == None:
-            print("invalid resort")
             requests.remove(req) # invalid resort
         else:
             for dt, stat in zip(req['dates'], req['status']):
                 if stat[0] or stat[0] == None:
-                    print("reserved or invalid {} {}".format(req['resort'], dt))
-                    req['dates'].remove(dt)
+                   req['dates'].remove(dt)
             if len(req['dates']) == 0:
                 # all dates finished
                 requests.remove(req)
