@@ -7,6 +7,7 @@ import logging
 from selenium import webdriver
 from selenium.webdriver.common.keys import Keys
 from selenium.common.exceptions import NoSuchElementException
+import random
 
 months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 
@@ -15,7 +16,7 @@ class IkonChecker:
             reservation_url="https://account.ikonpass.com/en/myaccount/add-reservations/", 
             login_url="https://account.ikonpass.com/en/login", 
             driver_location="C:/Program Files/chromedriver/chromedriver.exe",
-            log=None
+            log = None
         ):
         """
         reservation_url = the URL access point to the reservation system
@@ -31,23 +32,56 @@ class IkonChecker:
             self.log = logging.getLogger()
         else:
             self.log = log
+        self.log_indent = ''
 
+    def handle_requests_test(self, requests):
+        for i in range(len(requests)):
+            if random.random() < 0.05:
+                requests[i]['status'] = None
+            else:
+                requests[i]['status'] = [(random.random() > 0.5, 'message') for _ in requests[i]['dates']]
+        return requests
+    
     def handle_requests(self, requests):
         # handles a batch of requests, checks for multiple dates at multiple resorts
         # requests is a list of dicts = [
-        # { "resort": "RESORT NAME", "dates": ["Dates", "Desired"] }, ...
+        # { "resort": "RESORT NAME", "dates": ["Dates", "Desired"]}, ...
         # ]
-        # dates in format as requested by self.find_date()
+        # dates in format as requested by self.find_date(), in chron order
+        # appends to each dict a status array and returns the requests list
+        # status = None if resort not found
+        # status = [(bool/None, "msg"), ...] if resort is found. One elm for each date,
+        # bool/none as returned by either find_date() or reserve_date()
         if not type(requests) == list:
             raise ValueError("invalid value for 'requests': {}".format(requests))
-        for req in requests:
-            resort = req["resort"]
-            for dt in req["dates"]:
-                self.select_resort(resort)
-                response = self.find_date(dt)
-                if response[0]:
-                    success = self.reserve_date(response[1])
-                    
+        
+        for i in range(len(requests)):
+            self.log_indent = '\t'
+            resort = requests[i]["resort"]
+            status = []
+            if self.select_resort(resort):
+                self.log_indent = '\t\t'
+                for dt in requests[i]["dates"]:
+                    response = self.find_date(dt)
+                    if response[0]: # date found and available
+                        status.append(self.reserve_date(response[1]))
+                    else: # date is invalid or unavailable
+                        status.append(response)
+                requests[i]["status"] = status
+            else:
+                requests[i]["status"] = None
+        
+        self.log_indent = ''
+        return requests
+
+                
+                
+    def log_it(self, level, message):
+        # level = "INFO" "ERROR" message must be a string
+        if level == "INFO":
+            self.log.info(self.log_indent + message)
+        elif level == "ERROR":
+            self.log.error(self.log_indent + message)
 
     def click_button(self, button_text):
         xpath = "//button[@class][@data-test='button']/span[text()='{}']".format(button_text)
@@ -55,8 +89,8 @@ class IkonChecker:
             self.driver.find_element_by_xpath(xpath).click()
             return True
         except NoSuchElementException as ex:
-            self.log.error("exception: {}".format(ex))
-            self.log.error("couldnt find {} button".format(button_text))
+            self.log_it("ERROR", "exception: {}".format( ex))
+            self.log_it("ERROR", "couldnt find {} button".format(button_text))
             return False
 
     def close(self):
@@ -68,10 +102,11 @@ class IkonChecker:
     def check_login(self):
         try:
             self.driver.find_element_by_xpath("//div[@class='amp-profile-picture']/img[contains(@alt,'Profile photo')]")
-            self.log.info("logged in")
+            self.log_it("INFO", "logged in")
             return True
         except NoSuchElementException as ex:
-            self.log.info("not logged in")
+            self.log_it("INFO", "not logged in")
+            self.log_it("INFO", "ex: {}".format(ex))
             return False
 
     def login(self, email, password):
@@ -81,14 +116,14 @@ class IkonChecker:
             self.driver.find_element_by_id("email").send_keys(email)
             self.driver.find_element_by_id("sign-in-password").send_keys(password + Keys.RETURN)
             if self.check_login():
-                self.log.info("SUCCESSFULLY LOGGED IN")
+                self.log_it("INFO", "SUCCESSFULLY LOGGED IN")
                 return True
             else:
-                self.log.error("Unsuccessful log in. Check username and password")
+                self.log_it("ERROR", "Unsuccessful log in. Check username and password")
                 return False
         except Exception as ex:
-            self.log.info("already logged in")
-            self.log.info("exception: {}".format(ex))
+            self.log_it("INFO", "already logged in")
+            self.log_it("INFO", "exception: {}".format(ex))
             return True
 
     def cookie_consent(self):
@@ -101,8 +136,8 @@ class IkonChecker:
             for div in cookie_divs:
                 div.find_element_by_xpath(".//a[@aria-label='dismiss cookie message']").click()
         except Exception as ex:
-            self.log.error("exception: {}".format(ex))
-            self.log.error("cookie popup not found")
+            self.log_it("ERROR","exception: {}".format(ex))
+            self.log_it("ERROR", "cookie popup not found")
     
     def select_resort(self, resort_name, resort_xpath=None):
         # assumes logged in, selects to resort to get available dates for
@@ -113,10 +148,10 @@ class IkonChecker:
             resort_xpath = "//*[contains(@id,'react-autowhatever-resort-picker')]/span/span[{}='{}']".format(text_to_upper, resort_name)
         try:
             self.driver.find_element_by_xpath(resort_xpath).click()
-            self.log.info("found {}".format(resort_name))
+            self.log_it("INFO","found {}".format(resort_name))
         except NoSuchElementException as ex:
-            self.log.error("exception: {}".format(ex))
-            self.log.error("{} not found".format(resort_name))
+            self.log_it("ERROR", "exception: {}".format(ex))
+            self.log_it("ERROR", "{} not found".format(resort_name))
             return False
         return self.click_button("Continue")
 
@@ -138,7 +173,7 @@ class IkonChecker:
         test_year = test_date[3]
         diff = months.index(month) - months.index(test_month) + 12*(int(year) - int(test_year))
         if diff < 0:
-            self.log.error("{} is in the past".format(date))
+            self.log_it("ERROR", "{} is in the past".format(date))
             return (None, "past")
         for _ in range(diff):
             # click arrow
@@ -148,20 +183,20 @@ class IkonChecker:
             desired_day = self.driver.find_element_by_xpath("//div[@aria-label='{}']".format(date))
             status = desired_day.get_attribute("class")
             if "unavailable" in status:
-                self.log.info("{} is unavailable :(".format(date))
+                self.log_it("INFO","{} is unavailable :(".format(date))
                 return (False, "unavailable")
             elif "past" in status:
-                self.log.error("{} is in the past".format(date))
+                self.log_it("ERROR", "{} is in the past".format(date))
                 return (None, "past")
             elif "confirmed" in status:
-                self.log.info("you already reserved {}".format(date))
+                self.log_it("INFO","you already reserved {}".format(date))
                 return (None, "confirmed")
             else:
-                self.log.info("{} is available".format(date))
+                self.log_it("INFO","{} is available".format(date))
                 return (True, desired_day)     
         except Exception as ex:
-            self.log.error("exception: {}".format(ex))
-            self.log.error("day not found")
+            self.log_it("ERROR", "exception: {}".format(ex))
+            self.log_it("ERROR", "day not found")
             return (None, "not found")
     
     def reserve_date(self, desired_day):
@@ -174,18 +209,18 @@ class IkonChecker:
         try:
             self.driver.find_element_by_xpath("//label[@class='amp-checkbox-input']/input[@type='checkbox']").click()
         except NoSuchElementException as ex:
-            self.log.error("exception: {}".format(ex))
-            self.log.error("couldnt find checkbox")
-            return False
+            self.log_it("ERROR", "exception: {}".format(ex))
+            self.log_it("ERROR", "couldnt find checkbox")
+            return (False, "reservation failed")
         self.click_button("Confirm Reservations")
         try:
             self.driver.find_element_by_xpath("//i[contains(@class,'amp-icon icon-success')]")
-            self.log.note("Successfully booked!")
-            return True
+            self.log_it("INFO", "Successfully booked!")
+            return (True, "reservation success")
         except NoSuchElementException as ex:
-            self.log.error("exception: {}".format(ex))
-            self.log.error("Reservation failed")
-            return False
+            self.log_it("ERROR", "exception: {}".format(ex))
+            self.log_it("ERROR", "Reservation failed")
+            return (False, "reservation failed")
 
 resorts = [
     "ALTA SNOWBIRD",

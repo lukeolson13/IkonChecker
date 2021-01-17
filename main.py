@@ -1,6 +1,5 @@
 ##################
-# TODO: multiple searches at once
-# TODO: save search to file
+# TODO: make sure dates are unique
 # TODO: handle "not requiring reservations" or "external reservations"
 # TODO: partial resort names
 ##################
@@ -19,7 +18,21 @@ def load_from_file():
         with open(path) as f:
             deets = json.load(f)
             break
-    return deets['resort'], deets['date']
+    return deets['requests']
+
+def get_requests():
+    # gather multiple or a single resort with one or more dates at each
+    requests = []
+    finished = False
+    while not finished:
+        resort = get_resort_name(IkonChecker.resorts)
+        dates = get_dates()
+        requests.append({
+            "resort": resort,
+            "dates": dates
+        })
+        finished = input("another resort? y/n ") != "y"
+    return requests
 
 def get_resort_name(accepted_resorts):
     # prompt user for a resort name until they enter a valid one
@@ -28,36 +41,48 @@ def get_resort_name(accepted_resorts):
         if name.upper() in accepted_resorts:
             return name.upper()
         else:
-            print(name, "not found, see accepted names below, case insensitive")
             for res in accepted_resorts:
                 print(res)
+            print(name, "not found, see accepted names above, case insensitive")
             print()
 
-def get_date():
-    # prompt user for date until they enter a valid one
+def get_dates():
+    # prompt user for dates returns a chron sorted list of dates
+    # as strings in format 'Mon Jan 25 2021'
+    dates = []
     while True:
-        dt = input("enter your desired date in format 'MM/DD/YYYY': ")
+        inp_dates = input("enter your desired date in format 'MM/DD/YYYY' (multiple dates separated by spaces): ")
         try:
-            date = datetime.datetime.strptime(dt, "%m/%d/%Y").date()
-            formatted_date = datetime.datetime.strptime(dt, "%m/%d/%Y").strftime("%a %b %d %Y")
-            if date < datetime.date.today():
-                print("in the past")
-            elif input(formatted_date+" y/n? ") == 'y':
-                return formatted_date
+            for dt in inp_dates.split(' '):
+                date = datetime.datetime.strptime(dt, "%m/%d/%Y").date()
+                formatted_date = datetime.datetime.strptime(dt, "%m/%d/%Y").strftime("%a %b %d %Y")
+                if date < datetime.date.today():
+                    print("{} is in the past".format(formatted_date))
+                else:
+                    dates.append((date, formatted_date))
+            if len(dates) > 0:
+                dates.sort(key = lambda i: i[0])
+                print()
+                for dt in dates:
+                    print(dt[1])
+                if input("accept? y/n ") == "y":
+                    return [dt[1] for dt in dates]
         except ValueError as ex:
             print('please use right format')
 
 if not os.path.exists("Logs"):
     os.mkdir("Logs")
+if not os.path.exists("Searches"):
+    os.mkdir("Searches")
 
 print("whats up")
 my_email = input("enter email for ikon account pls: ")
 my_password = getpass.getpass()
-if input("load from file? y/n ") == "y":
-    my_resort, my_desired_date = load_from_file()
+load = input("load from file? y/n ") == "y"
+if load:
+    requests = load_from_file()
 else:
-    my_resort = get_resort_name(IkonChecker.resorts)
-    my_desired_date = get_date()
+    requests = get_requests()
     print("social security number?\n")
     time.sleep(1)
     print('naaaaa')
@@ -66,6 +91,13 @@ t = time.strftime("%Y%m%d %H%M%S", time.localtime())
 logging.basicConfig(filename="Logs/{}.log".format(t), level=logging.INFO)
 log = logging.getLogger()
 
+if not load:
+    print("Saved search to file 'Searches/{}.json'".format(t))
+    with open("Searches/{}.json".format(t), 'w') as f:
+        json.dump({"requests": requests}, f)
+
+
+exit()
 ik = IkonChecker.IkonChecker(log=log)
 
 if not ik.check_login():
@@ -75,22 +107,29 @@ if not ik.check_login():
     
 ik.cookie_consent()
 
-reserved = False
+finished = False
 attempt = 1
-while not reserved:
-    if not ik.check_login():
-        ik.login(my_email, my_password)
-    log.info("ATTEMPT: {}. TIME: {}".format(attempt, time.strftime("%H:%M:%S", time.localtime())))
-    ik.select_resort(my_resort)
-    response = ik.find_date(my_desired_date)
-    if response[0]:
-        reserved = ik.reserve_date(response[1])
-        if not reserved:
-            log.info("WAITING...\n\n")
-            time.sleep(300)
-            attempt += 1
-    elif response[0] == None:
-        reserved = True
-    
+print(requests)
+while not finished:
+    t = time.strftime("%Y%m%d %H%M%S", time.localtime())
+    log.info("\n\nATEMPT: {} TIME: {}".format(attempt, t))
+    requests = ik.handle_requests(requests)
+    print(requests)
+    for req in requests:
+        if req['status'] == None:
+            print("invalid resort")
+            requests.remove(req) # invalid resort
+        else:
+            for dt, stat in zip(req['dates'], req['status']):
+                if stat[0] or stat[0] == None:
+                    print("reserved or invalid {} {}".format(req['resort'], dt))
+                    req['dates'].remove(dt)
+            if len(req['dates']) == 0:
+                # all dates finished
+                requests.remove(req)
+    finished = len(requests) == 0
+    log.info("WAITING...")
+    time.sleep(300)
+    attempt += 1
 
 ik.close()
